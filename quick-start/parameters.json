@@ -1,0 +1,30 @@
+[
+  {
+    "ParameterKey": "Vpc",
+    "ParameterValue": "vpc-XXXXX"
+  },
+  {
+    "ParameterKey": "Subnets",
+    "ParameterValue": "subnet-XXXX,subnet-XXXX"
+  },
+  {
+    "ParameterKey": "KeyName",
+    "ParameterValue": ""
+  },
+  {
+    "ParameterKey": "MinvCpus",
+    "ParameterValue": "0"
+  },
+  {
+    "ParameterKey": "MaxvCpus",
+    "ParameterValue": "72"
+  },
+  {
+    "ParameterKey": "InstanceTypes",
+    "ParameterValue": "c5n.9xlarge"
+  },
+  {
+    "ParameterKey": "EcrUrl",
+    "ParameterValue": ""
+  }
+]

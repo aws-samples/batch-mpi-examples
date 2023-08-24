@@ -1,0 +1,254 @@
+# This is a sample CloudFormation template to demonstrate multi-node parallel 
+# MPI jobs on AWS Batch.
+#
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+#
+# Authors: J. Lowell Wofford <jlowellw@amazon.com>
+
+AWSTemplateFormatVersion: 2010-09-09
+
+Parameters:
+  Vpc:
+    Type: 'AWS::EC2::VPC::Id'
+    Description: VPC to deploy into
+  Subnets:
+    Type: 'List<AWS::EC2::Subnet::Id>'
+    Description: Subnets to deploy into
+  Image:
+    Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
+    Description: AMI to use for Batch cluster
+    Default: /aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2
+  KeyName:
+    Type: 'AWS::EC2::KeyPair::KeyName'
+    Description: Key name for ssh access to nodes
+    Default: ''
+  MinvCpus:
+    Type: 'Number'
+    Description: Set compute environment minvCpu
+    Default: 0
+  MaxvCpus:
+    Type: 'Number'
+    Description: Set compute environment maxvCpu
+    Default: 144
+  InstanceTypes:
+    Type: 'List<String>'
+    Description: Instance types for compute environment (EFA and Batch Compatible)
+    Default: "c5n.9xlarge"
+  EcrUrl:
+    Type: 'String'
+    Description: URL to an existing ECR repo, leave blank to create one
+    Default: ''
+
+Conditions:
+  UseKeyName: !Not [ !Equals [!Ref KeyName, '']]
+  CreateECR: !Equals [ !Ref EcrUrl, '' ]
+
+Resources:
+  LaunchTemplate:
+    Type: 'AWS::EC2::LaunchTemplate'
+    Properties:
+      LaunchTemplateName: !Sub "${AWS::StackName}-LaunchTemplate"
+      LaunchTemplateData:
+        ImageId: !Ref Image
+        NetworkInterfaces:
+          - Description: EFA Interface
+            Groups:
+              - !Ref EFASecurityGroup
+            NetworkCardIndex: 0
+            DeviceIndex: 0
+            DeleteOnTermination: true
+            InterfaceType: efa
+        KeyName: !If [ UseKeyName, !Ref KeyName, !Ref 'AWS::NoValue' ]
+        BlockDeviceMappings:
+          - DeviceName: '/dev/xvda'
+            Ebs:
+              DeleteOnTermination: true
+              VolumeSize: 40
+              VolumeType: 'gp2'
+        UserData: !Base64
+          "Fn::Sub": |
+            MIME-Version: 1.0
+            Content-Type: multipart/mixed; boundary="==BOUNDARY=="
+            
+            --==BOUNDARY==
+            Content-Type: text/x-shellscript; charset="us-ascii"
+            
+            #!/bin/bash
+            yum -y update
+            ### install efa
+            curl -O https://efa-installer.amazonaws.com/aws-efa-installer-1.15.1.tar.gz
+            tar -xf aws-efa-installer-1.15.1.tar.gz && cd aws-efa-installer
+            ./efa_installer.sh -y
+            ### disable hyperthreading
+            echo off > /sys/devices/system/cpu/smt/control
+            ### install lustre
+            amazon-linux-extras install -y lustre2.10
+            # add your lustre mounts here, e.g.:
+            # mkdir /lustre
+            # mount -t lustre -o noatime,flock <file_system_dns_name>@tcp:/<mountname> /lustre
+            ### install/setup ecs (do this last so nodes don't register early)
+            amazon-linux-extras install -y ecs
+            # This is a hack.  
+            # ECS/Batch tries to write out to /etc/ecs/ecs.conf before /etc/ecs exists.
+            # So, re-execute part 1 now.
+            source /var/lib/cloud/instance/scripts/part-001
+            systemctl enable docker.service --now
+            # this must be backgrounded because ecs depends on cloud-final, so we need to avoid deadlock
+            systemctl enable ecs.service --now &
+            --==BOUNDARY==--
+
+  EFASecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: Allow EFA communication for  Batch jobs
+      VpcId: !Ref Vpc
+  EFASecurityGroupIngress:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    Properties:
+      Description: All to all communication for EFA
+      IpProtocol: '-1'
+      FromPort: '-1'
+      ToPort: '-1'
+      GroupId: !Ref EFASecurityGroup
+      SourceSecurityGroupId: !Ref EFASecurityGroup
+  EFASecurityGroupEgress:
+    Type: 'AWS::EC2::SecurityGroupEgress'
+    Properties:
+      Description: All to all communication for EFA
+      IpProtocol: '-1'
+      FromPort: '-1'
+      ToPort: '-1'
+      GroupId: !Ref EFASecurityGroup
+      DestinationSecurityGroupId: !Ref EFASecurityGroup
+  EFASecurityGroupEgressECS:
+    Type: 'AWS::EC2::SecurityGroupEgress'
+    Properties:
+      Description: All to all communication for EFA
+      IpProtocol: '-1'
+      FromPort: '-1'
+      ToPort: '-1'
+      GroupId: !Ref EFASecurityGroup
+      CidrIp: '0.0.0.0/0'
+  PlacementGroup:
+    Type: 'AWS::EC2::PlacementGroup'
+    Properties:
+      Strategy: cluster
+  Queue:
+    Type: 'AWS::Batch::JobQueue'
+    Properties:
+      JobQueueName: !Sub "${AWS::StackName}-Queue"
+      Priority: 1
+      ComputeEnvironmentOrder:
+        - ComputeEnvironment: !Ref ComputeEnvironment
+          Order: 1
+  InstanceRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2008-10-17'
+        Statement:
+          - Sid: ''
+            Effect: Allow
+            Principal:
+              Service: 'ec2.amazonaws.com'
+            Action: 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role'
+  InstanceProfile:
+    Type: 'AWS::IAM::InstanceProfile'
+    Properties:
+      InstanceProfileName: !Sub "${AWS::StackName}-InstanceProfile"
+      Roles:
+        - !Ref InstanceRole
+  ComputeEnvironment:
+    Type: 'AWS::Batch::ComputeEnvironment'
+    Properties:
+      Type: MANAGED
+      ComputeEnvironmentName: !Sub "${AWS::StackName}-ComputeEnvironment"
+      ComputeResources:
+        MinvCpus: !Ref MinvCpus
+        MaxvCpus: !Ref MaxvCpus
+        DesiredvCpus: !Ref MinvCpus
+        InstanceTypes: !Ref InstanceTypes
+        SecurityGroupIds: []
+        LaunchTemplate:
+          LaunchTemplateId: !Ref LaunchTemplate
+          Version: $Default
+        PlacementGroup: !Ref PlacementGroup
+        Subnets: !Ref Subnets
+        InstanceRole: !Ref InstanceProfile
+        Type: EC2
+
+########################################
+# ECR & Job Definitions                #
+# change these to match your job needs #
+########################################
+
+  ECRRepository:
+    Type: 'AWS::ECR::Repository'
+    Condition: CreateECR
+    Properties:
+      ImageScanningConfiguration: 
+        ScanOnPush: true
+  BatchJobDefinition:
+    Type: 'AWS::Batch::JobDefinition'
+    Properties:
+      JobDefinitionName: !Sub "${AWS::StackName}"
+      Type: "multinode"
+      NodeProperties:
+        NumNodes: 2
+        MainNode: 0
+        NodeRangeProperties:
+          - TargetNodes: "0:"
+            Container: 
+              Image: !If [ CreateECR, !GetAtt ECRRepository.RepositoryUri, !Ref EcrUrl ]
+              Privileged: false
+              # ResourceRequirements should be adjusted per instance target
+              # Note: VCPU should map to physical cores, not vCPUs in the case of disabled SMT/Hyperthreading
+              ResourceRequirements:
+                - Type: "VCPU"
+                  Value: "18"
+                - Type: "MEMORY"
+                  Value: "8192"
+              LinuxParameters:
+                # In order to use EFA, we need to pass through this dev
+                # For multi-rail instance types (hpc7a, hpc6id, p5d,...)
+                # This will require one device per rail
+                Devices:
+                  - HostPath: "/dev/infiniband/uverbs0"
+                    ContainerPath: "/dev/infiniband/uverbs0"
+                    Permissions:
+                      - "READ"
+                      - "WRITE"
+                      - "MKNOD"
+### example of volume mount from fsx for lustre
+#              Volumes:
+#                - Name: "data"
+#                  Host: 
+#                    SourcePath: "/lustre"
+#              MountPoints:
+#                - ContainerPath: "/lustre"
+#                  SourceVolume: "lustre"
+
+Outputs:
+  RepoUrl:
+    Description: URL to ECR repo for the job container
+    Value: !If [ CreateECR, !GetAtt ECRRepository.RepositoryUri, !Ref EcrUrl ]
+    Export:
+      Name: !Sub "${AWS::StackName}-EcrUrl"
+  JobDefinition:
+    Description:  Job Definition
+    Value: !Ref BatchJobDefinition
+    Export:
+      Name: !Sub "${AWS::StackName}-JobDefinition"
+  BatchQueue:
+    Description: MNP Batch Queue
+    Value: !Ref Queue
+    Export:
+      Name: !Sub "${AWS::StackName}-Queue"
+  LaunchTemplate:
+    Description: MNP Batch Launch Template
+    Value: !Ref LaunchTemplate
+    Export:
+      Name: !Sub "${AWS::StackName}-LaunchTemplate"
