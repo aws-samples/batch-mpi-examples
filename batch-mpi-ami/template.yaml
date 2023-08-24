@@ -1,0 +1,207 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  This template deploys a CodeCommit Repository and CodeBuild Project to create a CI
+  pipeline to build this AMI.
+  Author: J. Lowell Wofford - jlowellw@
+
+####################
+## Stack Metadata ##
+####################
+
+Metadata:
+  AWS::CloudFomation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Git Repository Configuration
+        Parameters:
+          - CCRepoName
+      - Label:
+          default: CodeBuild Project Configuration
+        Parameters:
+          - CBProjectName
+          - CBConcurrentBuildLimit
+          - CBComputeType
+          - CBSourceVersion
+          - CBTimeout
+
+######################
+## Stack Parameters ##
+######################
+
+Parameters:
+  CCRepoName:
+    Description: Name to give the CodeCommit repository
+    Type: String
+    Default: aws-batch-ami
+
+  CBProjectName:
+    Description: Name to give to the CodeBuild Project
+    Type: String
+    Default: aws-batch-ami
+
+  CBConcurrentBuildLimit:
+    Description: Limit number of concurrent builds
+    Default: 1
+    Type: Number
+  
+  CBComputeType:
+    Description: CodeBuild Compute
+    Default: BUILD_GENERAL1_SMALL
+    Type: String
+    AllowedValues:
+      - BUILD_GENERAL1_SMALL
+      - BUILD_GENERAL1_MEDIUM
+      - BUILD_GENERAL1_LARGE
+  
+  CBSourceVersion:
+    Description: CodeBuild SourceVesion (branch, tag, commit)
+    Default: main
+    Type: String
+  
+  CBTimeout:
+    Description: CodeBuild timeout in minutes
+    Default: 60
+    Type: Number
+
+###############################
+## Conditions for Parameters ##
+###############################
+
+#Conditions:
+
+###############
+## Resources ##
+###############
+
+Resources:
+  CCRepository:
+    Type: AWS::CodeCommit::Repository
+    Properties:
+      RepositoryDescription: >
+        Build recipe for MNP+MPI AWS Batch EC2 clusters.
+      RepositoryName: !Ref CCRepoName
+
+  CBServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Action: ['sts:AssumeRole']
+            Effect: Allow
+            Principal:
+              Service: [codebuild.amazonaws.com]
+      Policies:
+        - PolicyName: CodeBuildBase
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+            - Effect: Allow
+              Resource:
+              - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${CBProjectName}"
+              - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${CBProjectName}:*"
+              Action:
+              - logs:CreateLogGroup
+              - logs:CreateLogStream
+              - logs:PutLogEvents
+            - Effect: Allow
+              Resource:
+              - !Sub "arn:aws:s3:::codepipeline-${AWS::Region}-*"
+              Action:
+              - s3:PutObject
+              - s3:GetObject
+              - s3:GetObjectVersion
+              - s3:GetBucketAcl
+              - s3:GetBucketLocation
+            - Effect: Allow
+              Resource:
+              - !GetAtt CCRepository.Arn
+              Action:
+              - codecommit:GitPull
+        - PolicyName: PackerBuildAMI
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+            - Effect: Allow
+              Action:
+              - ec2:AttachVolume
+              - ec2:AuthorizeSecurityGroupIngress
+              - ec2:CopyImage
+              - ec2:CreateImage
+              - ec2:CreateKeypair
+              - ec2:CreateSecurityGroup
+              - ec2:CreateSnapshot
+              - ec2:CreateTags
+              - ec2:CreateVolume
+              - ec2:DeleteKeyPair
+              - ec2:DeleteSecurityGroup
+              - ec2:DeleteSnapshot
+              - ec2:DeleteVolume
+              - ec2:DeregisterImage
+              - ec2:DescribeImageAttribute
+              - ec2:DescribeImages
+              - ec2:DescribeInstances
+              - ec2:DescribeInstanceStatus
+              - ec2:DescribeRegions
+              - ec2:DescribeSecurityGroups
+              - ec2:DescribeSnapshots
+              - ec2:DescribeSubnets
+              - ec2:DescribeTags
+              - ec2:DescribeVolumes
+              - ec2:DetachVolume
+              - ec2:GetPasswordData
+              - ec2:ModifyImageAttribute
+              - ec2:ModifyInstanceAttribute
+              - ec2:ModifySnapshotAttribute
+              - ec2:RegisterImage
+              - ec2:RunInstances
+              - ec2:StopInstances
+              - ec2:TerminateInstances
+              Resource: "*"
+
+  CBProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: !Ref CBProjectName
+      Description: !Sub "Build AMI specified in CodeCommit repo ${CCRepoName}"
+      Artifacts:
+        Type: NO_ARTIFACTS
+      BadgeEnabled: true
+      ConcurrentBuildLimit: !Ref CBConcurrentBuildLimit
+      Environment:
+        ComputeType: !Ref CBComputeType
+        Image: aws/codebuild/amazonlinux2-x86_64-standard:3.0
+        PrivilegedMode: false
+        Type: LINUX_CONTAINER
+      ServiceRole: !GetAtt CBServiceRole.Arn
+      Source:
+        BuildSpec: buildspec.yml
+        GitCloneDepth: 1
+        Location: !Sub "https://git-codecommit.${AWS::Region}.amazonaws.com/v1/repos/${CCRepoName}"
+        Type: CODECOMMIT
+      SourceVersion: !Ref CBSourceVersion
+      TimeoutInMinutes: !Ref CBTimeout
+      LogsConfig:
+        CloudWatchLogs:
+          Status: ENABLED
+        S3Logs:
+          Status: DISABLED
+
+#############
+## Outputs ##
+#############
+
+Outputs:
+  GitCloneHttp:
+    Value: !GetAtt CCRepository.CloneUrlHttp
+    Description: HTTPS Git URL
+    Export:
+      Name: !Sub "${AWS::StackName}-CloneUrlHttp"
+  GitCloneSsh:
+    Value: !GetAtt CCRepository.CloneUrlSsh
+    Description: SSH Git URL
+    Export:
+      Name: !Sub "${AWS::StackName}-CloneUrlSsh"
+  GitCloneGrc:
+    Value: !Sub "codecommit::${AWS::Region}://${CCRepoName}"
+    Description: HTTPS (GRC) Git URL

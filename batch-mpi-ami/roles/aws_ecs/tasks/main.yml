@@ -1,0 +1,64 @@
+---
+## this appears to be no longer necessary
+# - name: "Disbale docker extra"
+#   ansible.builtin.shell:
+#     cmd: PYTHON=python2 amazon-linux-extras disable docker
+#     changed_when: false
+- name: "Install ECS agent"
+  ansible.builtin.shell:
+    cmd: PYTHON=python2 amazon-linux-extras install -y ecs
+    creates: /usr/lib/systemd/system/ecs.service
+
+- name: "Enable docker"
+  ansible.builtin.systemd:
+    name: docker.service
+    enabled: true
+  notify: restart docker
+
+- name: "Enable ECS"
+  ansible.builtin.systemd:
+    name: ecs.service
+    enabled: true
+    # state: started <- leave this to the handler
+  notify: restart ecs
+
+- name: "Write ecs.config"
+  ansible.builtin.template:
+    src: "ecs.config.j2"
+    dest: /etc/ecs/ecs.config
+    mode: '0644'
+  notify: restart ecs
+
+- name: "Enable docker/nvidia runtime"
+  when: enable_gpus
+  block:
+    - name: "Add nvidia-docker repo"
+      ansible.builtin.shell: yum-config-manager --add-repo https://nvidia.github.io/nvidia-docker/amzn2/nvidia-docker.repo
+      args:
+        creates: /etc/yum.repos.d/nvidia-docker.repo
+      notify: yum-clean-metadata
+
+    - name: "Clean yum cache"
+      meta: flush_handlers
+
+    - name: "Install nvidia/docker"
+      ansible.builtin.yum:
+        name:
+          - nvidia-container-toolkit
+          - nvidia-docker2
+        state: present
+      notify: restart docker
+
+    - name: "Write docker daemon.json"
+      ansible.builtin.template:
+        src: daemon.json.j2
+        dest: /etc/docker/daemon.json
+        mode: '0644'
+      notify: restart docker
+
+    - name: "Write docker sysconfig"
+      ansible.builtin.template:
+        src: sysconfig-docker.j2
+        dest: /etc/sysconfig/docker
+        mode: '0644'
+      notify: restart docker

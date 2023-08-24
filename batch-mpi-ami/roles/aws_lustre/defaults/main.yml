@@ -1,0 +1,9 @@
+---
+aws_lustre_version: "2.10"
+aws_lustre_package: "lustre{{ aws_lustre_version }}"
+aws_lustre_mounts: []
+# - src: file_system_dns_name@tcp:/mountname (required)
+#   path: /fsx (required)
+#   opts: defaults,noatime,flock,noauto
+#     (default: defaults,noatime,flock,_netdev)
+#   state: present (default: mounted)

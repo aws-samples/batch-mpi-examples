@@ -1,0 +1,30 @@
+---
+- name: "Update kernel"
+  ansible.builtin.yum:
+    name: 'kernel*'
+    state: latest
+  when: packages_update
+  notify: system-reboot
+
+- name: "Force reboot on kernel update"
+  meta: flush_handlers
+
+- name: "Update all packages"
+  ansible.builtin.yum:
+    name: '*'
+    state: latest
+    exclude: "{{ packages_update_exclude }}"
+  when: packages_update
+
+- name: "Install package install list"
+  ansible.builtin.yum:
+    name: "{{ packages_install }}"
+    state: present
+    exclude: "{{ packages_install_exclude }}"
+  when: packages_install | length > 0
+
+- name: "Remove package remove list"
+  ansible.builtin.yum:
+    name: "{{ packages_remove }}"
+    state: absent
+  when: packages_remove | length > 0

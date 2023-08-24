@@ -1,0 +1,7 @@
+---
+nvidia_version: "510.47.03"
+cuda_version: "11-6"
+cudnn_version: "libcudnn8"
+nvidia_enable_fabric_manager: true
+nvidia_enable_nccl: true
+nvidia_enable_cuda_toolkit: true

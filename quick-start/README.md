@@ -119,7 +119,7 @@ This example can be modified to deploy real jobs for your Batch environment, how
 :  The quick-start example embeds SSH keys in the container image and uses them, however the wireup script is capable of using SSM Parameter secrets to more securely manage SSH keys. This is accomplished by loading a secret in the SSM Parameter store, and passing the name of the secret to `wireup.sh` as `WIREUP_SSM_SSH_KEY`.  Be sure the execution role allows access to the SSM secret.  See `wireup.sh help` for more details.
 
 **Custom Compute Environment AMI**
-: [/ecs-image](/ecs-image) contains a pipeline to build AMIs to be used in the Batch compute environment.  The quick start uses a launch template script to install and configure necessary dependencies, but this adds to job launch time because each time an instance boots it must complete these steps.  Pre-building AMIs can lead to more efficient job launch times.
+: [/batch-mpi-ami](/batch-mpi-ami) contains a pipeline to build AMIs to be used in the Batch compute environment.  The quick start uses a launch template script to install and configure necessary dependencies, but this adds to job launch time because each time an instance boots it must complete these steps.  Pre-building AMIs can lead to more efficient job launch times.
 
 **CI/CD Pipeline for Container Images and Job Definitions**
 : It is a best practice to use CI/CD pipelines to build and deploy the MPI container image(s) and manage AWS Batch Job Definitions.

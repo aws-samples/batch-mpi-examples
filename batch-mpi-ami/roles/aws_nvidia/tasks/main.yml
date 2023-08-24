@@ -1,0 +1,70 @@
+---
+- name: "Install NVidia dependencies"
+  ansible.builtin.yum:
+    name:
+      - gcc10
+      - kernel-devel
+      - kernel-headers
+    state: present
+
+- name: "Flush handlers (force yum clean)"
+  meta: flush_handlers
+
+- name: "Download the NVidia Installer"
+  ansible.builtin.get_url:
+    url: "https://us.download.nvidia.com/tesla/{{ nvidia_version }}/NVIDIA-Linux-x86_64-{{ nvidia_version }}.run"
+    dest: "/tmp/nvidia-installer.run"
+    mode: '0755'
+
+- name: "Install NVidia drivers"
+  ansible.builtin.shell: "CC=gcc10-cc /tmp/nvidia-installer.run -Z -q -a --ui=none"
+  args:
+    creates: "/usr/bin/nvidia-settings"
+
+- name: "Install CUDA toolkit"
+  when: nvidia_enable_cuda_toolkit
+  block:
+    - name: "Add cuda-rhel7 repo"
+      ansible.builtin.command: yum-config-manager --add-repo https://developer.download.nvidia.com/compute/cuda/repos/rhel7/x86_64/cuda-rhel7.repo 
+      args:
+        creates: /etc/yum.repos.d/cuda-rhel7.repo
+      notify: yum-clean-metadata
+    
+    
+    - name: "Install CUDA toolkit"
+      ansible.builtin.yum:
+        name:
+          - "cuda-toolkit-{{ cuda_version }}"
+          - "{{ cudnn_version }}"
+          - "{{ cudnn_version }}-devel"
+
+- name: "Install NVidia Fabric Manager"
+  when: nvidia_enable_fabric_manager
+  block:
+    - name: "Download NVidia fabric manager"
+      ansible.builtin.get_url:
+        url: "https://developer.download.nvidia.com/compute/nvidia-driver/redist/fabricmanager/linux-x86_64/fabricmanager-linux-x86_64-{{ nvidia_version }}-archive.tar.xz"
+        dest: "/tmp/nvidia-fabricmanager.tar.xz"
+        mode: "0644"
+    
+    - name: "Extract NVidia fabric manager"
+      ansible.builtin.unarchive:
+        src: "/tmp/nvidia-fabricmanager.tar.xz"
+        dest: "/usr"
+        remote_src: true
+        extra_opts:
+          - --strip-components=1
+          - --exclude
+          - LICENSE
+    
+    - name: "Link fabric manager service file"
+      ansible.builtin.file:
+        src: "/usr/systemd/nvidia-fabricmanager.service"
+        dest: "/usr/lib/systemd/system/nvidia-fabricmanager.service"
+        state: link
+    
+    - name: "Enable fabric manager"
+      ansible.builtin.systemd:
+        name: nvidia-fabricmanager.service
+        daemon-reload: true
+        enabled: true

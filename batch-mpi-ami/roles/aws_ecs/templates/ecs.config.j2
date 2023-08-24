@@ -1,0 +1,8 @@
+# {{ ansible_managed }}
+
+{% for key, value in aws_ecs_params.items() %}
+{{ key }}={{ value }}
+{% endfor %}
+{% if enable_gpus %}
+ECS_ENABLE_GPU_SUPPORT=true
+{% endif %}

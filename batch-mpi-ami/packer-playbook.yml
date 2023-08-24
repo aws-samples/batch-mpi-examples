@@ -1,0 +1,12 @@
+---
+- name: "Configure Batch AMI"
+  hosts: default
+  become: true
+  gather_facts: false
+  roles:
+    - base
+    - packages
+    - { role: aws_nvidia, when: enable_gpus }
+    - aws_lustre
+    - aws_ecs
+    - aws_efa

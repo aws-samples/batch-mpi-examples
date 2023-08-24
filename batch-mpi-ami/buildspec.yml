@@ -1,0 +1,30 @@
+---
+version: 0.2
+
+env:
+  variables:
+    ansible_version: 4.10.0
+    packer_url: https://releases.hashicorp.com/packer/1.8.0/packer_1.8.0_linux_amd64.zip
+    packer_build_script: packer-ami.pkr.hcl
+
+batch:
+  build-list:
+    - identifier: x86_64
+      type: LINUX_CONTAINER
+      compute-type: BUILD_GENERAL1_LARGE
+      image: aws/codebuild/amazonlinux2-x86_64-standard:3.0
+phases:
+  install:
+    commands:
+      - yum -y install python3-pip git curl
+      - pip3 install ansible==$ansible_version
+      - ansible-galaxy collection install ansible.posix
+      - pip3 install docker
+      - curl -O $packer_url
+      - unzip packer*.zip
+  pre_build:
+    commands:
+      - ./packer init $packer_build_script
+  build:
+    commands:
+      - ./packer build -var aws_region=$AWS_DEFAULT_REGION -var "ami_version=$(git rev-parse --short HEAD)" $packer_build_script

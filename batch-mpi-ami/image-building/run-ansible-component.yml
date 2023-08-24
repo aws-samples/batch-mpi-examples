@@ -1,0 +1,96 @@
+---
+name: RunAnsible
+description: This component will locally apply an ansible playbook to an image.
+schemaVersion: 1.0
+
+parameters:
+  - repo:
+      type: string
+      description: CodeCommit URL (HTTPS GRC) for the ansible repo
+  - playbook:
+      type: string
+      default: site.yml
+      description: relative path to the playbook to execute
+  - host:
+      type: string
+      default: localhost
+      description: ansible host to execute (locally)
+  - inventory:
+      type: string
+      default: inventory/hosts
+      description: relative path to the inventory file
+  - gitref:
+      type: string
+      default: main
+      description: git ref to build against (branch, tag, commit)
+  - limit:
+      type: string
+      default: all
+      description: limit to apply to ansible-playbook
+  - ansible_version:
+      type: string
+      default: 4.10.0
+      description: version of ansible to install
+constants:
+  - repodir:
+      type: string
+      value: '/tmp/ansible-repo'
+  - venvdir:
+      type: string
+      value: '/tmp/ansible-virtualenv'
+phases:
+  - name: build
+    steps:
+      - name: install_prerequisits
+        action: ExecuteBash
+        inputs:
+          commands:
+            - sudo yum -y install git awscli python-virtualenv
+            - |
+              #!/bin/bash -xe
+              virtualenv -p python3 '{{ venvdir }}'
+              source '{{ venvdir }}/bin/activate'
+              pip install --upgrade pip
+              pip install ansible=='{{ ansible_version }}'
+              pip install boto3
+              pip install git-remote-codecommit
+      - name: prepare_repository
+        action: ExecuteBash
+        inputs:
+          commands:
+            - |
+              #!/bin/bash -xe
+              source '{{ venvdir }}/bin/activate'
+              git clone '{{ repo }}' '{{ repodir }}'
+              cd '{{ repodir }}'
+              git checkout '{{ gitref }}'
+      - name: run_ansible-playbook
+        action: ExecuteBash
+        inputs:
+          commands:
+            - |
+              #!/bin/bash -xe
+              source '{{ venvdir }}/bin/activate'
+              cd '{{ repodir }}'
+              ansible-playbook \
+                --become \
+                -c local \
+                -t '{{ limit }}' \
+                -l '{{ host }}' \
+                -i '{{ inventory }}' \
+                '{{ playbook }}'
+      - name: remove_ansible_repository
+        action: DeleteFolder
+        inputs:
+          - path: '{{ repodir }}'
+            force: true
+      - name: remove_ansible_venv
+        action: DeleteFolder
+        inputs:
+          - path: '{{ venvdir }}'
+            force: true
+      - name: cleanup_packages
+        action: ExecuteBash
+        inputs:
+          commands:
+            - yum clean all
