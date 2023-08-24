@@ -1,0 +1,5 @@
+**/.python-version
+**/.aws-sam
+**/.vscode
+**/.DS_Store
+**/samconfig.toml
