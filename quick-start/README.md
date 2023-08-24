@@ -29,8 +29,11 @@ In this example, we deploy a minimal AWS Batch stack to run a simple `hello-mpi`
 
 ## Instructions
 
-1. Deploy the Batch resources (CloudFormation)
-   1. Edit `parameters.json` with values for your environment:
+1. Deploy the Batch resources using the following CloudFormation link:
+
+   ### [Quick Create Link](https://console.aws.amazon.com/cloudformation/home?#/stacks/quickcreate?templateURL=https://aws-hpc-workshops.s3.amazonaws.com/batch-mpi-template.yaml)
+
+   1. Edit the Parameters with values for your environment:
 
       **Vpc**
       : (required) the VPC ID to deploy in.
@@ -56,7 +59,7 @@ In this example, we deploy a minimal AWS Batch stack to run a simple `hello-mpi`
       **EcrUrl**
       : (optional, default create a new repository) you can pass an existing ECR repository for the container image if you have created one. By default, a new repository will be created for you.
 
-    2. Deploy the cloudformation template:
+    2. Alternatively, download [template.yaml](template.yaml) and deploy the using the aws cli:
 
        ```bash
        aws cloudformation create-stack --stack-name BatchMPI --template-body file://template.yaml --parametes file://parameters.json --capabilities CAPABILITY_NAMED_IAM
