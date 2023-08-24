@@ -1,0 +1,19 @@
+version: 0.2
+
+phases:
+  pre_build:
+    commands:
+      - echo "Logging in to Amazon ECR..."
+      - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com
+      - export REPO_URL=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG
+      - echo "Pulling latest container build (failure ok)..."
+      - docker pull $REPO_URL || true
+  build:
+    commands:
+      - echo "Building the Docker image..."
+      - docker build --cache-from $REPO_URL -t $IMAGE_REPO_NAME:$IMAGE_TAG $EXTRA_DOCKER_ARGS .
+      - docker tag $IMAGE_REPO_NAME:$IMAGE_TAG $REPO_URL
+  post_build:
+    commands:
+      - echo "Pushing the Docker image..."
+      - docker push $REPO_URL
