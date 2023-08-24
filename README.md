@@ -12,7 +12,7 @@ The [quick-start](/quick-start/) guide is a good place to get started.
 [container-examples](/container-examples/)
 : contains several examples of containers that can be built to run on AWS Batch. We focus on providing different build patterns, rather than a comprehensive catalog of applications.
 
-[ecs-image](/ecs-image/)
+[batch-mpi-ami](/batch-mpi-ami/)
 : contains a recipe to create a CI/CD pipeline build for MNP enabled AWS Batch AMIs.
 
 [util](/util/)
