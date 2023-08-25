@@ -13,7 +13,7 @@ packer {
 
 variable "ami_name" {
   type    = string
-  default = "batch-gpu-mpi"
+  default = "batch-mpi"
 }
 
 variable "ami_version" {
@@ -23,7 +23,7 @@ variable "ami_version" {
 
 variable "aws_region" {
   type    = string
-  default = "ap-northeast-2"
+  default = "us-east-1"
 }
 
 variable "instance_type" {

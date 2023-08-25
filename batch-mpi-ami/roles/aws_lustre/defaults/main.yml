@@ -1,6 +1,6 @@
 ---
-aws_lustre_version: "2.10"
-aws_lustre_package: "lustre{{ aws_lustre_version }}"
+aws_lustre_version: "latest"
+aws_lustre_package: "lustre={{ aws_lustre_version }}"
 aws_lustre_mounts: []
 # - src: file_system_dns_name@tcp:/mountname (required)
 #   path: /fsx (required)

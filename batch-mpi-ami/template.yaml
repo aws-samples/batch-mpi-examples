@@ -2,7 +2,7 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: >
   This template deploys a CodeCommit Repository and CodeBuild Project to create a CI
   pipeline to build this AMI.
-  Author: J. Lowell Wofford - jlowellw@
+  Author: J. Lowell Wofford <jlowellw@amazon.com>
 
 ####################
 ## Stack Metadata ##
@@ -14,37 +14,37 @@ Metadata:
       - Label:
           default: Git Repository Configuration
         Parameters:
-          - CCRepoName
+          - RepoName
       - Label:
           default: CodeBuild Project Configuration
         Parameters:
-          - CBProjectName
-          - CBConcurrentBuildLimit
-          - CBComputeType
-          - CBSourceVersion
-          - CBTimeout
+          - ProjectName
+          - ConcurrentBuildLimit
+          - ComputeType
+          - SourceVersion
+          - BuildTimeout
 
 ######################
 ## Stack Parameters ##
 ######################
 
 Parameters:
-  CCRepoName:
+  RepoName:
     Description: Name to give the CodeCommit repository
     Type: String
-    Default: aws-batch-ami
+    Default: batch-mpi-ami
 
-  CBProjectName:
+  ProjectName:
     Description: Name to give to the CodeBuild Project
     Type: String
-    Default: aws-batch-ami
+    Default: batch-mpi-ami
 
-  CBConcurrentBuildLimit:
+  ConcurrentBuildLimit:
     Description: Limit number of concurrent builds
     Default: 1
     Type: Number
   
-  CBComputeType:
+  ComputeType:
     Description: CodeBuild Compute
     Default: BUILD_GENERAL1_SMALL
     Type: String
@@ -53,12 +53,12 @@ Parameters:
       - BUILD_GENERAL1_MEDIUM
       - BUILD_GENERAL1_LARGE
   
-  CBSourceVersion:
+  SourceVersion:
     Description: CodeBuild SourceVesion (branch, tag, commit)
     Default: main
     Type: String
   
-  CBTimeout:
+  BuildTimeout:
     Description: CodeBuild timeout in minutes
     Default: 60
     Type: Number
@@ -79,7 +79,12 @@ Resources:
     Properties:
       RepositoryDescription: >
         Build recipe for MNP+MPI AWS Batch EC2 clusters.
-      RepositoryName: !Ref CCRepoName
+      RepositoryName: !Ref RepoName
+      Code:
+        BranchName: main
+        S3:
+          Bucket: aws-hpc-workshops
+          Key: batch-mpi-ami-source.zip
 
   CBServiceRole:
     Type: AWS::IAM::Role
@@ -98,8 +103,8 @@ Resources:
             Statement:
             - Effect: Allow
               Resource:
-              - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${CBProjectName}"
-              - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${CBProjectName}:*"
+              - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${ProjectName}"
+              - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${ProjectName}:*"
               Action:
               - logs:CreateLogGroup
               - logs:CreateLogStream
@@ -162,14 +167,14 @@ Resources:
   CBProject:
     Type: AWS::CodeBuild::Project
     Properties:
-      Name: !Ref CBProjectName
-      Description: !Sub "Build AMI specified in CodeCommit repo ${CCRepoName}"
+      Name: !Ref ProjectName
+      Description: !Sub "Build AMI specified in CodeCommit repo ${RepoName}"
       Artifacts:
         Type: NO_ARTIFACTS
       BadgeEnabled: true
-      ConcurrentBuildLimit: !Ref CBConcurrentBuildLimit
+      ConcurrentBuildLimit: !Ref ConcurrentBuildLimit
       Environment:
-        ComputeType: !Ref CBComputeType
+        ComputeType: !Ref ComputeType
         Image: aws/codebuild/amazonlinux2-x86_64-standard:3.0
         PrivilegedMode: false
         Type: LINUX_CONTAINER
@@ -177,10 +182,10 @@ Resources:
       Source:
         BuildSpec: buildspec.yml
         GitCloneDepth: 1
-        Location: !Sub "https://git-codecommit.${AWS::Region}.amazonaws.com/v1/repos/${CCRepoName}"
+        Location: !Sub "https://git-codecommit.${AWS::Region}.amazonaws.com/v1/repos/${RepoName}"
         Type: CODECOMMIT
-      SourceVersion: !Ref CBSourceVersion
-      TimeoutInMinutes: !Ref CBTimeout
+      SourceVersion: !Ref SourceVersion
+      TimeoutInMinutes: !Ref BuildTimeout
       LogsConfig:
         CloudWatchLogs:
           Status: ENABLED
@@ -203,5 +208,5 @@ Outputs:
     Export:
       Name: !Sub "${AWS::StackName}-CloneUrlSsh"
   GitCloneGrc:
-    Value: !Sub "codecommit::${AWS::Region}://${CCRepoName}"
+    Value: !Sub "codecommit::${AWS::Region}://${RepoName}"
     Description: HTTPS (GRC) Git URL

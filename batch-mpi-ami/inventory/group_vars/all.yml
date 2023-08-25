@@ -2,6 +2,7 @@
 packages_update: true
 aws_ecs_params:
   ECS_IMAGE_PULL_BEHAVIOR: "prefer-cached"
-aws_efa_version: "1.15.1"
-aws_lustre_version: "2.10"
-enable_gpus: true
+aws_efa_version: "latest"
+aws_lustre_version: "latest"
+# gpu support is experimental
+enable_gpus: false
