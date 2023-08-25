@@ -7,7 +7,7 @@
 
 # Build stage with Spack pre-installed and ready to be used
 FROM spack/amazon-linux:latest as base
-ARG WIREUP_URI=https://github.com/aws-samples/batch-mpi-examples/blob/main/util/wireup.sh
+ARG WIREUP_URI=https://raw.githubusercontent.com/aws-samples/batch-mpi-examples/main/util/wireup.sh
 RUN yum -y update
 
 # install EFA & Lustre

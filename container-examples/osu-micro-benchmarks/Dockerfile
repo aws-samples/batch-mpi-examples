@@ -50,7 +50,7 @@ RUN tar zxf $OSU_NAME.tar.gz \
 # Stage 3: Create a final image without unnecessary build environment
 ###
 FROM efa as final
-ARG WIREUP_URI=https://github.com/aws-samples/batch-mpi-examples/blob/main/util/wireup.sh
+ARG WIREUP_URI=https://raw.githubusercontent.com/aws-samples/batch-mpi-examples/main/util/wireup.sh
 COPY --from=builder /usr/local/libexec/osu-micro-benchmarks/mpi /osu
 ADD $WIREUP_URI /wireup
 RUN chmod +x /wireup \

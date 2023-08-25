@@ -41,7 +41,7 @@ RUN find -L /opt/view/* -type f -exec readlink -f '{}' \; | \
 RUN spack env activate --sh -v -d /opt/spack-environment > /etc/profile.d/z10_spack_environment.sh 
 
 FROM public.ecr.aws/amazonlinux/amazonlinux:latest as final
-ARG WIREUP_URI=https://github.com/aws-samples/batch-mpi-examples/blob/main/util/wireup.sh
+ARG WIREUP_URI=https://raw.githubusercontent.com/aws-samples/batch-mpi-examples/main/util/wireup.sh
 COPY --from=build /opt/software /opt/software
 COPY --from=build /opt/view /opt/view
 COPY --from=build /etc/profile.d/z10_spack_environment.sh /etc/profile.d/z10_spack_environment.sh
