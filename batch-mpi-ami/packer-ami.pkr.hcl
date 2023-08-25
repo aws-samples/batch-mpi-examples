@@ -28,7 +28,7 @@ variable "aws_region" {
 
 variable "instance_type" {
   type    = string
-  default = "p3.2xlarge"
+  default = "m5.2xlarge"
 }
 
 variable "inventory_directory" {
