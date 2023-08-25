@@ -15,6 +15,4 @@ export OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
   mpirun -hostfile /hostfile-ompi \
   -x PATH \
   -x LD_LIBRARY_PATH \
-  -x FI_LOG_LEVEL=info \
-  -x OMPI_MCA_btl_verbose=1 \
   hello-mpi
